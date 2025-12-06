@@ -103,12 +103,12 @@ end
 -- Warning dialog
 ShowWarningDialog = function()
     Log("Showing experimental warning dialog")
-    local warningText = "WARNING: This addon is EXPERIMENTAL and performs PERMANENT item deletion.\n\n" ..
+    local warningText = "WARNING: This addon attempts PERMANENT item deletion of items that cannot be deleted through the normal UI.\n\n" ..
+                       "Whilst it was designed to removed bugged items that break bags, a side effect is it makes it much easier to accidentally remove valuable items the default UI would warn you about.\n\n" ..
                        "Items deleted CANNOT be recovered.\n\n" ..
-                       "Use with EXTREME CAUTION and only on items you are absolutely certain you want to delete.\n\n" ..
+                       "Use with EXTREME CAUTION and only on items you are absolutely certain you want to delete. Ideally only items it acknowledges are bugged\n\n" ..
                        "IMPORTANT: This addon only works with the default Blizzard bag/bank UI.\n" ..
-                       "Please DISABLE any bag addon replacements (e.g., Bagnon, AdiBags) before using.\n" ..
-                       "You can re-enable them after the item is deleted.\n\n" ..
+                       "Please DISABLE any bag addon replacements (e.g., Bagnon, AdiBags, BetterBags etc) before using. You can re-enable them after the item is deleted.\n\n" ..
                        "Do you accept the risk and wish to continue?"
     
     CreateDialog("DeleteBuggedItems - WARNING", warningText, 
@@ -334,7 +334,7 @@ ShowItemConfirmationDialog = function(itemLink, itemName, itemLevel, itemQuality
     warningText:SetPoint("TOP", confirmText, "BOTTOM", 0, -15)
     warningText:SetWidth(460)
     warningText:SetJustifyH("CENTER")
-    warningText:SetText("CLOSE ALL BAG/BANK WINDOWS\nBEFORE ACCEPTING OR DELETE WILL FAIL!")
+    warningText:SetText("NOW CLOSE ALL BAG/BANK WINDOWS\nBEFORE ACCEPTING OR DELETE WILL FAIL!")
     warningText:SetTextColor(1.0, 0.2, 0.2) -- Bright red
     
     -- Bugged status warning (if item is NOT bugged)
@@ -345,9 +345,9 @@ ShowItemConfirmationDialog = function(itemLink, itemName, itemLevel, itemQuality
         bugWarning:SetJustifyH("CENTER")
         bugWarning:SetSpacing(2)
         bugWarning:SetText("WARNING: This item does NOT appear to be bugged!\n" ..
-                          "It can probably be deleted normally (right-click → Delete).\n" ..
+                          "It can probably be deleted normally.\n" ..
                           "Only use this addon if normal deletion fails.")
-        bugWarning:SetTextColor(1.0, 0.8, 0.0) -- Yellow/orange
+        bugWarning:SetTextColor(1.0, 1.0, 0.0) -- Bright yellow
     end
     
     -- Accept button
