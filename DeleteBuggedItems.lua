@@ -255,9 +255,21 @@ ShowItemConfirmationDialog = function(itemLink, itemName, itemLevel, itemQuality
     Log(string.format("Showing confirmation for item: %s (Bag: %d, Slot: %d, iLvl: %s)", 
                      itemName, bag, slot, tostring(itemLevel)))
     
+    -- Test if item is actually bugged by attempting pickup
+    C_Container.PickupContainerItem(bag, slot)
+    local cursorType, cursorInfo1, cursorInfo2 = GetCursorInfo()
+    local isBugged = (cursorType == nil and cursorInfo1 == nil and cursorInfo2 == nil)
+    
+    -- Put item back if we picked it up
+    if cursorType then
+        C_Container.PickupContainerItem(bag, slot)
+    end
+    
+    Log(string.format("Item bugged status: %s (cursorType=%s)", tostring(isBugged), tostring(cursorType)))
+    
     -- Create custom dialog with item display
     local dialog = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-    dialog:SetSize(500, 400)
+    dialog:SetSize(500, isBugged and 400 or 480)
     dialog:SetPoint("CENTER")
     dialog:SetBackdrop({
         bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
@@ -324,6 +336,19 @@ ShowItemConfirmationDialog = function(itemLink, itemName, itemLevel, itemQuality
     warningText:SetJustifyH("CENTER")
     warningText:SetText("CLOSE ALL BAG/BANK WINDOWS\nBEFORE ACCEPTING OR DELETE WILL FAIL!")
     warningText:SetTextColor(1.0, 0.2, 0.2) -- Bright red
+    
+    -- Bugged status warning (if item is NOT bugged)
+    if not isBugged then
+        local bugWarning = dialog:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        bugWarning:SetPoint("TOP", warningText, "BOTTOM", 0, -15)
+        bugWarning:SetWidth(460)
+        bugWarning:SetJustifyH("CENTER")
+        bugWarning:SetSpacing(2)
+        bugWarning:SetText("WARNING: This item does NOT appear to be bugged!\n" ..
+                          "It can probably be deleted normally (right-click → Delete).\n" ..
+                          "Only use this addon if normal deletion fails.")
+        bugWarning:SetTextColor(1.0, 0.8, 0.0) -- Yellow/orange
+    end
     
     -- Accept button
     local acceptBtn = CreateFrame("Button", nil, dialog, "UIPanelButtonTemplate")
