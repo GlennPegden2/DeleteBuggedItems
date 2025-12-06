@@ -1,0 +1,8 @@
+## Interface: 110207
+## Title: Delete Bugged Items
+## Notes: Experimental addon for deleting bugged items stuck in bank slots. Use /DeleteBuggedItem to start. WARNING: Permanently deletes items!
+## Author: Glenn Pegden (Tiltriatura of Rage of Ancients on Chamber of Aspects)
+## Version: 2.0.0
+## SavedVariables: DeleteBuggedItemsDB
+
+DeleteBuggedItems.lua
