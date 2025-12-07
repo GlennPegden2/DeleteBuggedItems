@@ -31,6 +31,7 @@ end
 
 -- Forward declarations
 local ShowWarningDialog
+local ScanForBuggedItems
 local ShowBankPromptDialog
 local ShowItemConfirmationDialog
 local BeginDeletionProcess
@@ -114,9 +115,21 @@ ShowWarningDialog = function()
     CreateDialog("DeleteBuggedItems - WARNING", warningText, 
         function()
             warningAccepted = true
-            Log("User accepted warning - proceeding")
+            Log("User accepted warning - showing bank reminder")
             EnableItemClickDetection()
-            ShowBankPromptDialog()
+            
+            -- Show bank reminder dialog
+            CreateDialog("DeleteBuggedItems - Bank Reminder",
+                "REMINDER: If you want to scan your bank for bugged items,\n" ..
+                "make sure to OPEN YOUR BANK NOW before proceeding.\n\n" ..
+                "The scan will check all accessible bags and bank slots.\n\n" ..
+                "Click OK when ready to begin scanning.",
+                function()
+                    ScanForBuggedItems()
+                end,
+                nil,
+                false
+            ):Show()
         end,
         function()
             Log("User declined warning - addon disabled")
@@ -127,6 +140,156 @@ ShowWarningDialog = function()
     ):Show()
 end
 
+-- Scan all bags and bank for bugged items
+ScanForBuggedItems = function()
+    Log("Scanning all bags and bank for bugged items...")
+    print("|cFF00FF00[DeleteBuggedItems]|r Scanning for bugged items...")
+    
+    -- Create scanning progress dialog
+    local scanDialog = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+    scanDialog:SetSize(400, 150)
+    scanDialog:SetPoint("CENTER")
+    scanDialog:SetBackdrop({
+        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+        tile = true, tileSize = 32, edgeSize = 32,
+        insets = { left = 11, right = 12, top = 12, bottom = 11 }
+    })
+    scanDialog:SetFrameStrata("DIALOG")
+    
+    local titleText = scanDialog:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    titleText:SetPoint("TOP", 0, -20)
+    titleText:SetText("DeleteBuggedItems - Scanning")
+    
+    local messageText = scanDialog:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    messageText:SetPoint("CENTER", 0, 0)
+    messageText:SetText("Scanning all bags and bank for bugged items...\n\nPlease wait, this may take a moment.")
+    
+    scanDialog:Show()
+    
+    local buggedItems = {}
+    local currentBag = 0
+    local totalItemsScanned = 0
+    local bagsScanned = 0
+    
+    -- Scan bags one at a time with delays to avoid timeout
+    local function scanNextBag()
+        if currentBag > 12 then
+            -- Scanning complete
+            scanDialog:Hide()
+            
+            -- Create summary header
+            local summaryHeader = string.format("Scan Summary: %d bag(s) scanned, %d total item(s) checked\n\n", 
+                bagsScanned, totalItemsScanned)
+            
+            -- Display results
+            if #buggedItems > 0 then
+                local resultText = summaryHeader .. string.format("Found %d bugged item(s):\n\n", #buggedItems)
+                for i, item in ipairs(buggedItems) do
+                    resultText = resultText .. string.format("%d. %s\n   Location: %s, Slot %d\n\n", 
+                        i, item.name, item.location, item.slot)
+                end
+                resultText = resultText .. "Proceeding to item selection..."
+                
+                Log(string.format("Scan complete: %d bags, %d items, %d bugged", bagsScanned, totalItemsScanned, #buggedItems))
+                print("|cFF00FF00[DeleteBuggedItems]|r " .. string.format("Found %d bugged item(s). Check the dialog for details.", #buggedItems))
+                
+                CreateDialog("DeleteBuggedItems - Scan Results", resultText, 
+                    function()
+                        ShowBankPromptDialog()
+                    end,
+                    nil,
+                    false
+                ):Show()
+            else
+                Log(string.format("Scan complete: %d bags, %d items, 0 bugged", bagsScanned, totalItemsScanned))
+                print("|cFF00FF00[DeleteBuggedItems]|r No bugged items found in bags or bank.")
+                
+                local resultText = summaryHeader .. 
+                    "No bugged items were detected in your bags or bank.\n\n" ..
+                    "All items appear to be functioning normally.\n\n" ..
+                    "You can proceed to manual selection or exit the addon."
+                
+                CreateDialog("DeleteBuggedItems - Scan Results", resultText,
+                    function()
+                        ShowBankPromptDialog()
+                    end,
+                    function()
+                        Log("User chose to exit after scan found no bugged items")
+                        addonActive = false
+                        warningAccepted = false
+                        state = 0
+                        print("|cFF00FF00[DeleteBuggedItems]|r Addon cancelled. Use /DeleteBuggedItem to start again.")
+                    end,
+                    true
+                ):Show()
+            end
+            return
+        end
+        
+        -- Scan current bag
+        local numSlots = C_Container.GetContainerNumSlots(currentBag) or 0
+        if numSlots > 0 then
+            bagsScanned = bagsScanned + 1
+            for slot = 1, numSlots do
+                local itemID = C_Container.GetContainerItemID(currentBag, slot)
+                if itemID then
+                    totalItemsScanned = totalItemsScanned + 1
+                    
+                    -- Try to pickup the item to test if it's bugged
+                    C_Container.PickupContainerItem(currentBag, slot)
+                    local cursorType, cursorInfo1, cursorInfo2 = GetCursorInfo()
+                    local isBugged = (cursorType == nil and cursorInfo1 == nil and cursorInfo2 == nil)
+                    
+                    -- Put item back if we picked it up
+                    if cursorType then
+                        C_Container.PickupContainerItem(currentBag, slot)
+                    end
+                    
+                    if isBugged then
+                        -- Get item info
+                        local itemName, itemLink = C_Item.GetItemInfo(itemID)
+                        if not itemName then
+                            C_Item.RequestLoadItemDataByID(itemID)
+                            itemName = "Item ID: " .. itemID
+                        end
+                        
+                        -- Determine bag location description
+                        local location
+                        if currentBag == 0 then
+                            location = "Backpack"
+                        elseif currentBag >= 1 and currentBag <= 4 then
+                            location = string.format("Bag %d", currentBag)
+                        elseif currentBag == 5 then
+                            location = "Bank"
+                        else
+                            location = string.format("Bank Bag %d", currentBag - 5)
+                        end
+                        
+                        table.insert(buggedItems, {
+                            bag = currentBag,
+                            slot = slot,
+                            name = itemName,
+                            location = location
+                        })
+                        
+                        Log(string.format("Found bugged item: %s in %s slot %d", itemName, location, slot))
+                    end
+                end
+            end
+        end
+        
+        -- Move to next bag
+        currentBag = currentBag + 1
+        
+        -- Schedule next bag scan with small delay to avoid timeout
+        C_Timer.After(0.05, scanNextBag)
+    end
+    
+    -- Start scanning
+    C_Timer.After(0.1, scanNextBag)
+end
+
 -- Container prompt dialog (bags or bank)
 local promptDialog = nil
 
@@ -135,7 +298,7 @@ ShowBankPromptDialog = function()
     
     -- Create persistent dialog
     promptDialog = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-    promptDialog:SetSize(550, 200)
+    promptDialog:SetSize(550, 260)
     promptDialog:SetPoint("CENTER")
     promptDialog:SetBackdrop({
         bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
@@ -161,6 +324,29 @@ ShowBankPromptDialog = function()
     messageText:SetText("HOVER your mouse over the item you want to delete in your bags or bank,\n" ..
                        "then press the SPACEBAR to capture it.\n\n" ..
                        "The addon will show you the item details for confirmation.")
+    
+    -- Cancel button
+    local cancelBtn = CreateFrame("Button", nil, promptDialog, "UIPanelButtonTemplate")
+    cancelBtn:SetSize(120, 30)
+    cancelBtn:SetPoint("BOTTOM", 0, 20)
+    cancelBtn:SetText("Cancel")
+    cancelBtn:SetScript("OnClick", function()
+        promptDialog:Hide()
+        -- Disable capture frame
+        local captureFrame = _G["DeleteBuggedItemsCaptureFrame"]
+        if captureFrame then
+            captureFrame:SetScript("OnKeyDown", nil)
+            captureFrame:Hide()
+        end
+        Log("User cancelled item selection")
+        addonActive = false
+        warningAccepted = false
+        state = 0
+        BAG, SLOT = nil, nil
+        selectedItemID = nil
+        selectedItemLink = nil
+        print("|cFF00FF00[DeleteBuggedItems]|r Addon cancelled. Use /DeleteBuggedItem to start again.")
+    end)
     
     promptDialog:Show()
     
