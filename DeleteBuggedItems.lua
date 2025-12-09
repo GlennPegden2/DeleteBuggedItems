@@ -572,26 +572,11 @@ ShowItemConfirmationDialog = function(itemLink, itemName, itemLevel, itemQuality
     dialog:Show()
 end
 
--- Event frame for bank detection (optional - can work without bank)
-local eventFrame = CreateFrame("Frame")
-eventFrame:RegisterEvent("BANKFRAME_OPENED")
-eventFrame:RegisterEvent("BANKFRAME_CLOSED")
-
-local containerClickHandler = nil
-
 -- Enable item click detection when warning is accepted
 EnableItemClickDetection = function()
     -- No longer needed - using button-based capture instead
     Log("Item capture will use button-based method")
 end
-
-eventFrame:SetScript("OnEvent", function(self, event, ...)
-    if event == "BANKFRAME_OPENED" then
-        Log("Bank opened")
-    elseif event == "BANKFRAME_CLOSED" then
-        Log("Bank closed")
-    end
-end)
 
 -- Begin the deletion process (CORE LOGIC - DO NOT MODIFY)
 BeginDeletionProcess = function()
